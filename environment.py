@@ -353,6 +353,7 @@ class BombeRLeWorld(GenericWorld):
 
         scenario_info = s.SCENARIOS[self.args.scenario]
 
+
         # Crates in random locations
         arena[self.rng.random((s.COLS, s.ROWS)) < scenario_info["CRATE_DENSITY"]] = CRATE
 

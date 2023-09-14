@@ -14,6 +14,10 @@ import events as e
 import settings as s
 from fallbacks import pygame
 
+
+#This dictionary defines the structure of the agent's API (Application Programming Interface). 
+#It specifies the required functions and their argument lists that an agent needs to implement. 
+#There are two main sections: "callbacks" and "train". 
 AGENT_API = {
     "callbacks": {
         "setup": ["self"],
@@ -26,6 +30,7 @@ AGENT_API = {
         "end_of_round": ["self", "last_game_state: dict", "last_action: str", "events: List[str]"]
     }
 }
+
 
 EVENT_STAT_MAP = {
     e.KILLED_OPPONENT: 'kills',
@@ -52,7 +57,7 @@ class Agent:
     The Agent calls the callbacks in callbacks.py in the specified code folder by
     calling events on its AgentBackend.
     """
-
+    #initializes an agent with various properties, such as its name, avatar image, display name, and more. It also calls the setup method.
     def __init__(self, agent_name, code_name, display_name, train: bool, backend: "AgentBackend", avatar_sprite_desc, bomb_sprite_desc):
         self.backend = backend
 
@@ -103,7 +108,7 @@ class Agent:
         self.last_action = None
 
         self.setup()
-
+    #initializes the agent's backend and calls the necessary setup functions.
     def setup(self):
         # Call setup on backend
         self.backend.send_event("setup")
@@ -114,7 +119,8 @@ class Agent:
 
     def __str__(self):
         return f"Agent {self.name} under control of {self.code_name}"
-
+    
+    #method resets the agent's state for a new round.
     def start_round(self):
         self.dead = False
         self.score = 0
@@ -133,28 +139,30 @@ class Agent:
     @property
     def base_timeout(self):
         return s.TRAIN_TIMEOUT if self.train else s.TIMEOUT
-
+    #method adds a game event to the agent's list of events and updates related statistics
     def add_event(self, event):
         if event in EVENT_STAT_MAP:
             self.note_stat(EVENT_STAT_MAP[event])
         self.events.append(event)
-
+    #method updates the agent's statistics
     def note_stat(self, name, value=1):
         self.statistics[name] += value
         self.lifetime_statistics[name] += value
-
+    #method returns information about the agent for the global game state
     def get_state(self):
         """Provide information about this agent for the global game state."""
         return self.name, self.score, self.bombs_left, (self.x, self.y)
-
+    #method updates the agent's score
     def update_score(self, delta):
         """Add delta to both the current round's score and the total score."""
         self.score += delta
         self.total_score += delta
 
+    #method sends the game events to the backend for processing
     def process_game_events(self, game_state):
         self.backend.send_event("game_events_occurred", self.last_game_state, self.last_action, game_state, self.events)
 
+    #method waits for the backend to process game events
     def wait_for_game_event_processing(self):
         self.backend.get("game_events_occurred")
 
@@ -164,33 +172,35 @@ class Agent:
 #    def wait_for_enemy_game_event_processing(self):
 #        self.backend.get("enemy_game_events_occurred")
 
+    #stores the current game state
     def store_game_state(self, game_state):
         self.last_game_state = game_state
-
+    #resets the list of game events
     def reset_game_events(self):
         self.events = []
-
+    #sends the current game state to the backend for decision making
     def act(self, game_state):
         self.backend.send_event("act", game_state)
-
+    #waits for the backend to return an action
     def wait_for_act(self):
         action, think_time = self.backend.get_with_time("act")
         self.note_stat("time", think_time)
         self.note_stat("steps")
         self.last_action = action
         return action, think_time
-
+    #signals the end of a game round to the backend
     def round_ended(self):
         self.backend.send_event("end_of_round", self.last_game_state, self.last_action, self.events)
         self.backend.get("end_of_round")
-
+    #renders the agent's avatar on the screen
     def render(self, screen, x, y):
         """Draw the agent's avatar to the screen at the given coordinates."""
         screen.blit(self.avatar, (x, y))
         if self.dead:
             screen.blit(self.shade, (x, y))
 
-
+#This class is responsible for running the agent's callback functions. 
+# It checks if the required callback functions are implemented and enforces their signatures
 class AgentRunner:
     """
     Agent callback runner (called by backend).
@@ -254,7 +264,8 @@ class AgentRunner:
             self.wlogger.exception(e)
             self.result_queue.put((event_name, 0, e))
 
-
+#This is the base class for connecting the agent to a callback implementation. 
+# It contains methods for starting events, sending events to the backend, and getting event results.
 class AgentBackend:
     """
     Base class connecting the agent to a callback implementation.
@@ -287,7 +298,8 @@ class AgentBackend:
         except queue.Empty:
             raise
 
-
+#This class implements a simple version of AgentBackend where events are processed sequentially in the main thread. 
+#This is meant for easier debugging but might be slower and less safe.
 class SequentialAgentBackend(AgentBackend):
     """
     AgentConnector realised in main thread (easy debugging).
@@ -311,7 +323,7 @@ class SequentialAgentBackend(AgentBackend):
 
 QUIT = "quit"
 
-
+#This function is used in the ProcessAgentBackend class. It runs in a separate process and continuously processes events from a queue.
 def run_in_agent_runner(train: bool, agent_name: str, code_name: str, wta_queue: mp.Queue, atw_queue: mp.Queue):
     runner = AgentRunner(train, agent_name, code_name, atw_queue)
     while True:
@@ -320,7 +332,8 @@ def run_in_agent_runner(train: bool, agent_name: str, code_name: str, wta_queue:
             break
         runner.process_event(event_name, *event_args)
 
-
+#This class implements an agent backend that uses a separate process for event processing. 
+#This is intended to be faster and more robust than the sequential version.
 class ProcessAgentBackend(AgentBackend):
     """
     AgentConnector realised by a separate process (fast and safe mode).
