@@ -27,7 +27,7 @@ def setup(self):
         with open("my-saved-model.pt", "rb") as file:
             self.Qtable = pickle.load(file)
         np.savetxt("Qtable.txt",self.Qtable.reshape(-1))
-        self.epsilon=0.3
+        self.epsilon=0.1
         print(self.epsilon)
 
 
@@ -37,7 +37,11 @@ def epsilon_greedy_policy(self,state):
         return np.random.choice(ACTIONS,p=[.25, .25, .25, .25])
     else:
         self.logger.info("Model based action.")
-        return ACTIONS[np.argmax(self.Qtable[state[0],state[1], :])]
+        q_values=self.Qtable[state[0],state[1], :]
+        if all(q == q_values[0] for q in q_values):
+            return np.random.choice(ACTIONS,p=[.25, .25, .25, .25])
+        else:
+            return ACTIONS[np.argmax(self.Qtable[state[0],state[1], :])]
 
 def act(self, game_state: dict) -> str:
     """
@@ -54,6 +58,19 @@ def act(self, game_state: dict) -> str:
     self.logger.info(action)
     return action
 
+def situational_awareness(game_state):
+    x,y=game_state['self'][3]
+    return {'UP':game_state['field'][x][y+1],'RIGHT':game_state['field'][x+1][y],'DOWN':game_state['field'][x][y-1],'LEFT':game_state['field'][x-1][y]}
+
+def coins_in_row(game_state):
+    coins=game_state['coins']
+    agent_x, agent_y = game_state['self'][3]
+    left_coins = any(coin_x < agent_x and coin_y == agent_y for coin_x, coin_y in coins)
+    right_coins = any(coin_x > agent_x and coin_y == agent_y for coin_x, coin_y in coins)
+    up_coins= any(coin_y < agent_y and coin_x == agent_x for coin_x, coin_y in coins)
+    down_coins= any(coin_y < agent_y and coin_x == agent_x for coin_x, coin_y in coins)
+
+    return {'UP':up_coins,'RIGHT': right_coins,'DOWN':down_coins,'LEFT':left_coins}
 
 def state_to_features(game_state: dict) -> np.array:
     """
@@ -78,8 +95,8 @@ def state_to_features(game_state: dict) -> np.array:
     #state_index = agent_y *width  + agent_x
     features.append(agent_x) 
     features.append(agent_y)
-    
+    features.append(situational_awareness(game_state))
+    features.append(coins_in_row(game_state))
+    #print(features)
     return features
 
-
-    
