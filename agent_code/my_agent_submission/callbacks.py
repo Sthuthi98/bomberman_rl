@@ -24,7 +24,7 @@ def setup(self):
         self.logger.info("Setting up model from scratch.")
     else:
         self.logger.info("Loading model from saved state.")
-        with open("my-saved-model_task1.pt", "rb") as file:
+        with open("my-saved-model.pt", "rb") as file:
             self.Qtable = pickle.load(file)
         np.savetxt("Qtable.txt",self.Qtable.reshape(-1))
         self.epsilon=0.1
